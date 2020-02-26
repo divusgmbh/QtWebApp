@@ -22,6 +22,7 @@ namespace stefanfrings {
   readTimeout=60000
   ;sslKeyFile=ssl/my.key
   ;sslCertFile=ssl/my.cert
+  ;sslChainFile=ssl/my.chain1[,ssl/my.chain2,...]
   maxRequestSize=16000
   maxMultiPartSize=1000000
   </pre></code>

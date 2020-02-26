@@ -91,6 +91,7 @@ void HttpConnectionHandlerPool::loadSslConfig()
     // If certificate and key files are configured, then load them
     QString sslKeyFileName=settings->value("sslKeyFile","").toString();
     QString sslCertFileName=settings->value("sslCertFile","").toString();
+    QString sslChainFileName=settings->value("sslChainFile","").toString();
     if (!sslKeyFileName.isEmpty() && !sslCertFileName.isEmpty())
     {
         #ifdef QT_NO_OPENSSL
@@ -122,8 +123,33 @@ void HttpConnectionHandlerPool::loadSslConfig()
                 qCritical("HttpConnectionHandlerPool: cannot open sslCertFile %s", qPrintable(sslCertFileName));
                 return;
             }
+            QList<QSslCertificate> certificates;
             QSslCertificate certificate(&certFile, QSsl::Pem);
+            certificates.append(certificate);
             certFile.close();
+
+            for (QString chainFileName : sslChainFileName.split(",")) {
+                #ifdef Q_OS_WIN32
+                    if (QDir::isRelativePath(chainFileName) && settings->format()!=QSettings::NativeFormat)
+                #else
+                   if (QDir::isRelativePath(chainFileName))
+                #endif
+                {
+                    chainFileName = QFileInfo(configFile.absolutePath(), chainFileName).absoluteFilePath();
+                }
+                QFile chainFile(chainFileName);
+                if (!chainFile.exists()) {
+                    continue;
+                }
+                if (!chainFile.open(QIODevice::ReadOnly))
+                {
+                    qWarning("HttpConnectionHandlerPool: cannot open sslChainFile %s", qPrintable(chainFileName));
+                    continue;
+                }
+                QSslCertificate chainCert(&chainFile, QSsl::Pem);
+                chainFile.close();
+                certificates.append(chainCert);
+            }
 
             // Load the key file
             QFile keyFile(sslKeyFileName);
@@ -137,7 +163,7 @@ void HttpConnectionHandlerPool::loadSslConfig()
 
             // Create the SSL configuration
             sslConfiguration=new QSslConfiguration();
-            sslConfiguration->setLocalCertificate(certificate);
+            sslConfiguration->setLocalCertificateChain(certificates);
             sslConfiguration->setPrivateKey(sslKey);
             sslConfiguration->setPeerVerifyMode(QSslSocket::VerifyNone);
             sslConfiguration->setProtocol(QSsl::TlsV1SslV3);
